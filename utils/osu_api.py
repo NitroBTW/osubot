@@ -83,7 +83,7 @@ class OsuClient:
             Optional[Any]: A list of ossapi Score objects or None.
         """
         # Get the user
-        user = await self.resolve_user(identifier, mode)
+        user = await self.get_user(identifier, mode)
         # Get that user's recent score(s)
         scores = await self.api.user_scores(
             user.id,
