@@ -1,8 +1,9 @@
 """
 Helper functions for use/continuity throughout osu!bot
 """
+from typing import Any
 
-def api_mods_to_string(mods: List[Any]) -> str:
+def api_mods_to_string(mods: list[Any]) -> str:
     """
     Convert an osu!api mods list to an acronym string like 'HDDT'
 
