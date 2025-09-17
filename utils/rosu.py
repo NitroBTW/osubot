@@ -3,6 +3,7 @@ Script full of useful rosu calculations
 """
 import rosu_pp_py as rosu
 from typing import Optional, Any
+from dataclasses import dataclass
 
 from utils.helpers import *
 
@@ -43,7 +44,7 @@ def calculate_score_metrics(
         ScoreMetrics: Dataclass for score information
     """
     # Mods parsing
-    mods_string = api_mods_to_string
+    mods_string = api_mods_to_string(score.mods)
     
     # Beatmap parsing
     api_beatmap_info = score.beatmap
@@ -90,7 +91,7 @@ def calculate_score_metrics(
     
     # Return
     return ScoreMetrics(
-        pp_actual=pp,
+        pp=pp,
         pp_if_fc=pp_fc,
         pp_if_ss=pp_ss,
         stars_with_mods=stars,
