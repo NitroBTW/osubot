@@ -146,7 +146,8 @@ def calculate_score_metrics(
     performance_fc = rosu.Performance(lazer=lazer)
     performance_fc.set_mods(mods_string)
     
-    if hasattr(performance_fc, "set_n300"):
+    if lazer:
+        print("Setting lazer values")
         performance_fc.set_n300(int(n300_fc))
         performance_fc.set_n100(int(n100_fc))
         performance_fc.set_n50(int(n50_fc))
@@ -164,10 +165,10 @@ def calculate_score_metrics(
         
     # Fallback and use accuracy + 0 misses
     else:
-        print("FALLBACK")
+        print("Setting stable values")
         performance_fc.set_accuracy(float(accuracy_fc))
         performance_fc.set_misses(0)
-        print(f"performance_fc after fallback accuracy: \n{performance_fc.__getstate__}\n\n\n")
+        performance_fc.set_combo(int(map_max_combo))
 
     print(accuracy_fc)
     pp_fc = float(performance_fc.calculate(beatmap).pp)
@@ -176,7 +177,8 @@ def calculate_score_metrics(
     performance_actual = rosu.Performance(lazer=lazer)
     performance_actual.set_mods(mods_string)
     
-    if hasattr(performance_actual, "set_n300"):
+    if lazer:
+        print("Setting lazer values")
         performance_actual.set_n300(int(n300))
         performance_actual.set_n100(int(n100))
         performance_actual.set_n50(int(n50))
@@ -196,7 +198,7 @@ def calculate_score_metrics(
         if getattr(score, "max_combo", None) is not None:
             performance_actual.set_combo(int(score.max_combo))
     else:
-        # Fallback and use basic data
+        print("Setting stable values")
         accuracy_percent = float(score.accuracy) * 100.0
         performance_actual.set_accuracy(accuracy_percent)
         performance_actual.set_misses(int(misses))
