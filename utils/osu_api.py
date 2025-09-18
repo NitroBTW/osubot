@@ -62,6 +62,21 @@ class OsuClient:
             return await self.api.user(str(identifier), mode=mode)
         except Exception as e:
             raise RuntimeError(f"Failed to get user data: {e}") from e
+    
+    async def get_score(
+        self,
+        score_id: int
+    ) -> Optional[Any]:
+        """
+        Get score data from a given ID
+
+        Args:
+            score_id (int): The numerical ID of the osu! score
+
+        Returns:
+            Optional[Any]: ossapi score object.
+        """
+        return await self.api.score(score_id)
         
     async def get_recent_score(
         self,
