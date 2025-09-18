@@ -15,6 +15,7 @@ class ScoreMetrics:
     """
     pp: Optional[float]
     pp_if_fc: Optional[float]
+    accuracy_if_fc: Optional[float]
     pp_if_ss: Optional[float]
     stars_with_mods: Optional[float]
     map_cs: Optional[float]
@@ -50,11 +51,11 @@ def calculate_score_metrics(
     # Beatmap parsing
     api_beatmap_info = score.beatmap
     print(f"api_beatmap_inf: \n{api_beatmap_info}\n\n\n")
+    print(f"Score info: \n{score}\n\n\n")
     beatmap = rosu.Beatmap(path=beatmap_path)
     
     # Difficulty attributes
     difficulty = rosu.Difficulty(mods=mods_string, lazer=lazer)
-    print(f"difficulty: \n{difficulty}\n\n\n")
     difficulty_attributes = difficulty.calculate(beatmap)
     print(f"difficulty_attributes: \n{difficulty_attributes}\n\n\n")
     stars = float(getattr(difficulty_attributes, "stars", 0.0))
@@ -71,11 +72,11 @@ def calculate_score_metrics(
     length_sec = getattr(api_beatmap_info, "total_length", None)
     print(f"details: cs{cs}, ar{ar}, od{od}, hp{hp}, {bpm}, {length_sec}")
     
-    n_circles = int(getattr(difficulty_attributes, "n_circles", 0))
+    n_circles = int(getattr(difficulty_attributes, "n_circles", 0) or 0)
     print(f"n_circles: {n_circles}")
-    n_sliders = int(getattr(difficulty_attributes, "n_sliders", 0))
+    n_sliders = int(getattr(difficulty_attributes, "n_sliders", 0) or 0)
     print(f"n_sliders: {n_sliders}")
-    n_large_ticks = int(getattr(difficulty_attributes, "n_large_ticks", 0))
+    n_large_ticks = int(getattr(difficulty_attributes, "n_large_ticks", 0) or 0)
     print(f"n_large_ticks: {n_large_ticks}")
     n_small_ticks = int(getattr(difficulty_attributes, "n_small_ticks", 0) or 0)
     print(f"n_small_ticks: {n_small_ticks}")
@@ -83,13 +84,13 @@ def calculate_score_metrics(
     print(f"Total objects for mode: {total_objects_for_mode}")
     
     # Score data from api
-    n300 = int(getattr(score.statistics, "great", 0))
+    n300 = int(getattr(score.statistics, "great", 0) or 0)
     print(f"n300: {n300}")
-    n100 = int(getattr(score.statistics, "ok", 0))
+    n100 = int(getattr(score.statistics, "ok", 0) or 0)
     print(f"n100: {n100}")
-    n50 = int(getattr(score.statistics, "meh", 0))
+    n50 = int(getattr(score.statistics, "meh", 0) or 0)
     print(f"n50: {n50}")
-    misses = int(getattr(score.statistics, "miss", 0))
+    misses = int(getattr(score.statistics, "miss", 0) or 0)
     print(f"misses: {misses}")
     
     # Passed objects and 'unseen' objects (if the play is a fail)
@@ -99,7 +100,7 @@ def calculate_score_metrics(
     print(f"UNseen objects: {unseen_objects}")
     
     # Convert unseen objects into 300s
-    n300_fc = n300
+    n300_fc = n300 + unseen_objects
     print(f"n300_fc {n300_fc}")
     
     # Counted hits after removing misses
@@ -153,19 +154,14 @@ def calculate_score_metrics(
         
         # For lazer scoring, ensure slider stuff is max
         # If score statistics has these, set them; otherwise skip.
-        # Large ticks (heads/tails)
+        # Large ticks (slider ends)
         if hasattr(performance_fc, "set_slider_end_hits"):
-            performance_fc.set_slider_end_hits(int(n_large_ticks))
+            performance_fc.set_slider_end_hits(int(n_sliders))
         
         # Small ticks (slider ticks)
-        if n_small_ticks and hasattr(performance_fc, "set_small_tick_hits"):
-            performance_fc.set_small_tick_hits(int(n_small_ticks))
+        if n_small_ticks > 0 and hasattr(performance_fc, "set_small_tick_hits"):
+            performance_fc.set_small_tick_hits(n_small_ticks)  # All slider ticks hit for FC
         
-        # Classic mod handling
-        is_classic = "CL" in mods_string or "Classic" in mods_string
-        if is_classic and hasattr(performance_fc, "set_slider_tail_hits"):
-            performance_fc.set_slider_tail_hits(int(n_sliders))
-            
     # Fallback and use accuracy + 0 misses
     else:
         print("FALLBACK")
@@ -176,6 +172,40 @@ def calculate_score_metrics(
     print(accuracy_fc)
     pp_fc = float(performance_fc.calculate(beatmap).pp)
     
+    # Actual PP
+    performance_actual = rosu.Performance(lazer=lazer)
+    performance_actual.set_mods(mods_string)
+    
+    if hasattr(performance_actual, "set_n300"):
+        performance_actual.set_n300(int(n300))
+        performance_actual.set_n100(int(n100))
+        performance_actual.set_n50(int(n50))
+        performance_actual.set_misses(int(misses))
+
+        # Set actual slider hits from score statistics
+        if hasattr(performance_actual, "set_slider_end_hits"):
+            actual_slider_end_hits = int(getattr(score.statistics, "slider_tail_hit", 0) or 0)
+            performance_actual.set_slider_end_hits(actual_slider_end_hits)
+        
+        # Set actual small ticks if available
+        if hasattr(performance_actual, "set_small_tick_hits"):
+            actual_small_tick_hits = int(getattr(score.statistics, "small_tick_hit", 0) or 0)
+            performance_actual.set_small_tick_hits(actual_small_tick_hits)
+        
+        # Set combo
+        if getattr(score, "max_combo", None) is not None:
+            performance_actual.set_combo(int(score.max_combo))
+    else:
+        # Fallback and use basic data
+        accuracy_percent = float(score.accuracy) * 100.0
+        performance_actual.set_accuracy(accuracy_percent)
+        performance_actual.set_misses(int(misses))
+        if getattr(score, "max_combo", None) is not None:
+            performance_actual.set_combo(int(score.max_combo))
+    
+    print(performance_actual.calculate(beatmap))
+    actual_pp = performance_actual.calculate(beatmap).pp
+    
     # SS PP
     performance_ss = rosu.Performance(lazer=lazer)
     performance_ss.set_accuracy(100.0)
@@ -185,8 +215,9 @@ def calculate_score_metrics(
     
     # Return
     return ScoreMetrics(
-        pp=score.pp,
+        pp=actual_pp,
         pp_if_fc=pp_fc,
+        accuracy_if_fc=accuracy_fc,
         pp_if_ss=pp_ss,
         stars_with_mods=stars,
         map_cs=float(cs) if cs is not None else None,
