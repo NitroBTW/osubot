@@ -13,7 +13,8 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 async def init_db() -> None:
-    """Initialises the SQLite database
+    """
+    Initialises the SQLite database
     
     Creates the databse file if it doesn't exist, and ensure's required tables exist.
     """
@@ -90,7 +91,8 @@ async def set_link(
         logger.info(f"Successfully added link for Discord ID: {discord_id} to the database.")
         
 async def get_link(discord_id: int):
-    """Gets the osu! link by Discord ID.
+    """
+    Gets the osu! link by Discord ID.
     
     Fetches the osu! user ID, username, and preferred mode associated with the given Discord user ID.
     
