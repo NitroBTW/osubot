@@ -40,7 +40,7 @@ class DiscordBot(commands.Bot):
         """
         Called by discord on startup. Initialise the Database, Osu client, and load cogs.
         """
-        logging.info("setup_hook starting")
+        logger.info("Bot setup_hook starting")
         await init_db()
         self.osu_client = OsuClient()
         
@@ -51,15 +51,15 @@ class DiscordBot(commands.Bot):
         for c in cogs:
             try:
                 await self.load_extension(c)
-                logging.info(f"Loaded cog {c}")
-            except Exception:
-                traceback.print_exc()
+                logger.info(f"Successfully loaded cog {c}")
+            except Exception as e:
+                logger.error(f"Failed to load cog {c}: {e}", exc_info=True)
         
     async def on_ready(self) -> None:
         """
         Called on bot login
         """
-        logging.info(f"Bot logged in as {self.user} (id={self.user.id})")
+        logger.info(f"Bot logged in as {self.user} (ID: {self.user.id})")
         await self.tree.sync()
     
     async def close(self) -> None:

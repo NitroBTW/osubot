@@ -5,6 +5,8 @@ import asyncio
 import os
 import httpx
 from typing import Any, Optional
+import logging
+
 from ossapi import OssapiAsync
 
 from utils.config import (
@@ -12,6 +14,8 @@ from utils.config import (
     OSU_CLIENT_SECRET, 
     BEATMAP_CACHE_DIR
 )
+
+logger = logging.getLogger(__name__)
 
 class OsuClient:
     """
@@ -61,7 +65,8 @@ class OsuClient:
             # Return user data using a given Name
             return await self.api.user(str(identifier), mode=mode)
         except Exception as e:
-            raise RuntimeError(f"Failed to get user data: {e}") from e
+            logger.error(f"Failed to get user data for {identifier}: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to get user data for {identifier}: {e}") from e
     
     async def get_score(
         self,
