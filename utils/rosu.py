@@ -26,6 +26,229 @@ class ScoreMetrics:
     map_length_sec: Optional[int]
     map_max_combo: Optional[int]
 
+
+def _calculate_fc_stats(
+    n300: int,
+    n100: int,
+    n50: int,
+    misses: int,
+    total_objects_for_mode: int,
+    unseen_objects: int
+) -> tuple[int, int, int, int, float]:
+    """
+    Calculate full combo hit statistics and accuracy.
+
+    Args:
+        n300 (int): Number of 300s hit.
+        n100 (int): Number of 100s hit.
+        n50 (int): Number of 50s hit.
+        misses (int): Number of misses.
+        total_objects_for_mode (int): Total hittable objects in the mode.
+        unseen_objects (int): Unseen objects to convert to 300s.
+
+    Returns:
+        tuple[int, int, int, int, float]: n300_fc, n100_fc, n50_fc, misses_fc, accuracy_fc
+    """
+    n300_fc = n300 + unseen_objects
+    print(f"n300_fc {n300_fc}")
+    
+    counted_hits = total_objects_for_mode - misses
+    print(f"counted_hits: {counted_hits}")
+    if counted_hits <= 0 or total_objects_for_mode <= 0:
+        print("Treating as SS")
+        # Treat as SS
+        accuracy_fc = 100.0
+        print(f"Accuracy_fc: {accuracy_fc}")
+        n100_fc = n100
+        print(f"n100_fc {n100_fc}")
+        n50_fc = n50
+        print(f"n50_fc: {n50_fc}")
+        misses_fc = 0
+        print(f"misses_fc: {misses_fc}")
+    
+    else:
+        print("NOT TREATING AS SS")
+        # Distribute original misses between 300s and 100s for realistic/average fc value
+        redistribution_ratio = 1.0 - (n300_fc / counted_hits)
+        print(f"ratio: {redistribution_ratio}")
+        new_100s = int(math.ceil(max(0.0, redistribution_ratio) * misses))
+        print(f"new100s: {new_100s}")
+        
+        n300_fc += max(0, misses - new_100s)
+        print(f"n300_fc: {n300_fc}")
+        n100_fc = n100 + new_100s
+        print(f"n100_fc {n100_fc}")
+        n50_fc = n50
+        print(f"n50_fc: {n50_fc}")
+        misses_fc = 0
+        print(f"misses_fc: {misses_fc}")
+        
+        accuracy_fc = (
+            (300 * n300_fc + 100 * n100_fc + 50 * n50_fc)
+            / (300 * total_objects_for_mode)
+            * 100.0
+        )
+        print(f"accuracy_fc: {accuracy_fc}")
+    
+    return n300_fc, n100_fc, n50_fc, misses_fc, accuracy_fc
+
+
+def _calculate_fc_pp(
+    beatmap,
+    mods_string: str,
+    lazer: bool,
+    n300_fc: int,
+    n100_fc: int,
+    n50_fc: int,
+    misses_fc: int,
+    accuracy_fc: float,
+    map_max_combo: Optional[int],
+    n_sliders: int,
+    n_small_ticks: int
+) -> float:
+    """
+    Build performance object and calculate PP for full combo scenario.
+
+    Args:
+        beatmap (rosu.Beatmap): The beatmap.
+        mods_string (str): Mods as string.
+        lazer (bool): Use lazer calculations.
+        n300_fc (int): 300s for FC.
+        n100_fc (int): 100s for FC.
+        n50_fc (int): 50s for FC.
+        misses_fc (int): Misses for FC.
+        accuracy_fc (float): Accuracy for FC.
+        map_max_combo (Optional[int]): Map max combo.
+        n_sliders (int): Number of sliders.
+        n_small_ticks (int): Number of small ticks.
+
+    Returns:
+        float: PP for FC.
+    """
+    # Build performance calculation for FC
+    performance_fc = rosu.Performance(lazer=lazer)
+    performance_fc.set_mods(mods_string)
+    
+    if lazer:
+        print("Setting lazer values")
+        performance_fc.set_n300(int(n300_fc))
+        performance_fc.set_n100(int(n100_fc))
+        performance_fc.set_n50(int(n50_fc))
+        performance_fc.set_misses(int(misses_fc))
+        
+        # For lazer scoring, ensure slider stuff is max
+        # If score statistics has these, set them; otherwise skip.
+        # Large ticks (slider ends)
+        if hasattr(performance_fc, "set_slider_end_hits"):
+            performance_fc.set_slider_end_hits(int(n_sliders))
+        
+        # Small ticks (slider ticks)
+        if n_small_ticks > 0 and hasattr(performance_fc, "set_small_tick_hits"):
+            performance_fc.set_small_tick_hits(n_small_ticks)  # All slider ticks hit for FC
+    
+    # Fallback and use accuracy + 0 misses
+    else:
+        print("Setting stable values")
+        performance_fc.set_accuracy(float(accuracy_fc))
+        performance_fc.set_misses(0)
+        performance_fc.set_combo(int(map_max_combo))
+
+    pp_fc = float(performance_fc.calculate(beatmap).pp)
+    return pp_fc
+
+
+def _calculate_actual_pp(
+    beatmap,
+    mods_string: str,
+    lazer: bool,
+    n300: int,
+    n100: int,
+    n50: int,
+    misses: int,
+    actual_slider_end_hits: int,
+    actual_small_tick_hits: int,
+    score_max_combo: Optional[int],
+    score_accuracy: Any
+) -> float:
+    """
+    Build performance object and calculate actual PP from score.
+
+    Args:
+        beatmap (rosu.Beatmap): The beatmap.
+        mods_string (str): Mods as string.
+        lazer (bool): Use lazer calculations.
+        n300 (int): Actual 300s.
+        n100 (int): Actual 100s.
+        n50 (int): Actual 50s.
+        misses (int): Actual misses.
+        actual_slider_end_hits (int): Actual slider end hits.
+        actual_small_tick_hits (int): Actual small tick hits.
+        score_max_combo (Optional[int]): Score max combo.
+        score_accuracy (Any): Score accuracy for stable.
+
+    Returns:
+        float: Actual PP.
+    """
+    # Actual PP
+    performance_actual = rosu.Performance(lazer=lazer)
+    performance_actual.set_mods(mods_string)
+    
+    if lazer:
+        print("Setting lazer values")
+        performance_actual.set_n300(int(n300))
+        performance_actual.set_n100(int(n100))
+        performance_actual.set_n50(int(n50))
+        performance_actual.set_misses(int(misses))
+
+        # Set actual slider hits from score statistics
+        if hasattr(performance_actual, "set_slider_end_hits"):
+            performance_actual.set_slider_end_hits(actual_slider_end_hits)
+        
+        # Set actual small ticks if available
+        if hasattr(performance_actual, "set_small_tick_hits"):
+            performance_actual.set_small_tick_hits(actual_small_tick_hits)
+        
+        # Set combo
+        if score_max_combo is not None:
+            performance_actual.set_combo(int(score_max_combo))
+    else:
+        print("Setting stable values")
+        accuracy_percent = float(score_accuracy) * 100.0
+        performance_actual.set_accuracy(accuracy_percent)
+        performance_actual.set_misses(int(misses))
+        if score_max_combo is not None:
+            performance_actual.set_combo(int(score_max_combo))
+    
+    print(performance_actual.calculate(beatmap))
+    actual_pp = performance_actual.calculate(beatmap).pp
+    return actual_pp
+
+
+def _calculate_ss_pp(
+    beatmap,
+    mods_string: str,
+    lazer: bool
+) -> float:
+    """
+    Calculate PP for SS score.
+
+    Args:
+        beatmap (rosu.Beatmap): The beatmap.
+        mods_string (str): Mods as string.
+        lazer (bool): Use lazer calculations.
+
+    Returns:
+        float: SS PP.
+    """
+    # SS PP
+    performance_ss = rosu.Performance(lazer=lazer)
+    performance_ss.set_accuracy(100.0)
+    performance_ss.set_misses(0)
+    performance_ss.set_mods(mods_string)
+    pp_ss = float(performance_ss.calculate(beatmap).pp)
+    return pp_ss
+
+
 def calculate_score_metrics(
     beatmap_path: str,
     score: Any,
@@ -66,7 +289,7 @@ def calculate_score_metrics(
     # Beatmap stats (raw from API if present, fallback to difficulty attributes where relevant)
     cs = getattr(api_beatmap_info, "cs", None)
     ar = getattr(api_beatmap_info, "ar", None)
-    od = getattr(api_beatmap_info, "accuracy", None)  # API calls OD 'accuracy' because lazer
+    od = getattr(api_beatmap_info, "accuracy", None) # API calls OD 'accuracy' because lazer
     hp = getattr(api_beatmap_info, "drain", None)
     bpm = getattr(api_beatmap_info, "bpm", None)
     length_sec = getattr(api_beatmap_info, "total_length", None)
@@ -99,121 +322,33 @@ def calculate_score_metrics(
     unseen_objects = max(0, total_objects_for_mode - passed_objects_count)
     print(f"UNseen objects: {unseen_objects}")
     
-    # Convert unseen objects into 300s
-    n300_fc = n300 + unseen_objects
-    print(f"n300_fc {n300_fc}")
-    
-    # Counted hits after removing misses
-    counted_hits = total_objects_for_mode - misses
-    print(f"counted_hits: {counted_hits}")
-    if counted_hits <= 0 or total_objects_for_mode <= 0:
-        print("Treating as SS")
-        # Treat as SS
-        accuracy_fc = 100.0
-        print(f"Accuracy_fc: {accuracy_fc}")
-        n100_fc = n100
-        print(f"n100_fc {n100_fc}")
-        n50_fc = n50
-        print(f"n50_fc: {n50_fc}")
-        misses_fc = 0
-        print(f"misses_fc: {misses_fc}")
-    
-    else:
-        print("NOT TREATING AS SS")
-        # Distribute original misses between 300s and 100s for realistic/average fc value
-        redistribution_ratio = 1.0 - (n300_fc / counted_hits)
-        print(f"ratio: {redistribution_ratio}")
-        new_100s = int(math.ceil(max(0.0, redistribution_ratio) * misses))
-        print(f"new100s: {new_100s}")
-        
-        n300_fc += max(0, misses - new_100s)
-        print(f"n300_fc: {n300_fc}")
-        n100_fc = n100 + new_100s
-        print(f"n100_fc {n100_fc}")
-        n50_fc = n50
-        print(f"n50_fc: {n50_fc}")
-        misses_fc = 0
-        print(f"misses_fc: {misses_fc}")
-        
-        accuracy_fc = (
-            (300 * n300_fc + 100 * n100_fc + 50 * n50_fc)
-            / (300 * total_objects_for_mode)
-            * 100.0
-        )
-        print(f"accuracy_fc: {accuracy_fc}")
-        
-    # Build performance calculation for FC
-    performance_fc = rosu.Performance(lazer=lazer)
-    performance_fc.set_mods(mods_string)
-    
-    if lazer:
-        print("Setting lazer values")
-        performance_fc.set_n300(int(n300_fc))
-        performance_fc.set_n100(int(n100_fc))
-        performance_fc.set_n50(int(n50_fc))
-        performance_fc.set_misses(int(misses_fc))
-        
-        # For lazer scoring, ensure slider stuff is max
-        # If score statistics has these, set them; otherwise skip.
-        # Large ticks (slider ends)
-        if hasattr(performance_fc, "set_slider_end_hits"):
-            performance_fc.set_slider_end_hits(int(n_sliders))
-        
-        # Small ticks (slider ticks)
-        if n_small_ticks > 0 and hasattr(performance_fc, "set_small_tick_hits"):
-            performance_fc.set_small_tick_hits(n_small_ticks)  # All slider ticks hit for FC
-        
-    # Fallback and use accuracy + 0 misses
-    else:
-        print("Setting stable values")
-        performance_fc.set_accuracy(float(accuracy_fc))
-        performance_fc.set_misses(0)
-        performance_fc.set_combo(int(map_max_combo))
-
+    # Calculate FC stats
+    n300_fc, n100_fc, n50_fc, misses_fc, accuracy_fc = _calculate_fc_stats(
+        n300, n100, n50, misses, total_objects_for_mode, unseen_objects
+    )
     print(accuracy_fc)
-    pp_fc = float(performance_fc.calculate(beatmap).pp)
     
-    # Actual PP
-    performance_actual = rosu.Performance(lazer=lazer)
-    performance_actual.set_mods(mods_string)
+    # Calculate FC PP
+    pp_fc = _calculate_fc_pp(
+        beatmap, mods_string, lazer, n300_fc, n100_fc, n50_fc, misses_fc,
+        accuracy_fc, map_max_combo, n_sliders, n_small_ticks
+    )
     
-    if lazer:
-        print("Setting lazer values")
-        performance_actual.set_n300(int(n300))
-        performance_actual.set_n100(int(n100))
-        performance_actual.set_n50(int(n50))
-        performance_actual.set_misses(int(misses))
-
-        # Set actual slider hits from score statistics
-        if hasattr(performance_actual, "set_slider_end_hits"):
-            actual_slider_end_hits = int(getattr(score.statistics, "slider_tail_hit", 0) or 0)
-            performance_actual.set_slider_end_hits(actual_slider_end_hits)
-        
-        # Set actual small ticks if available
-        if hasattr(performance_actual, "set_small_tick_hits"):
-            actual_small_tick_hits = int(getattr(score.statistics, "small_tick_hit", 0) or 0)
-            performance_actual.set_small_tick_hits(actual_small_tick_hits)
-        
-        # Set combo
-        if getattr(score, "max_combo", None) is not None:
-            performance_actual.set_combo(int(score.max_combo))
-    else:
-        print("Setting stable values")
-        accuracy_percent = float(score.accuracy) * 100.0
-        performance_actual.set_accuracy(accuracy_percent)
-        performance_actual.set_misses(int(misses))
-        if getattr(score, "max_combo", None) is not None:
-            performance_actual.set_combo(int(score.max_combo))
+    # Actual slider hits
+    actual_slider_end_hits = int(getattr(score.statistics, "slider_tail_hit", 0) or 0)
+    actual_small_tick_hits = int(getattr(score.statistics, "small_tick_hit", 0) or 0)
     
-    print(performance_actual.calculate(beatmap))
-    actual_pp = performance_actual.calculate(beatmap).pp
+    # Score combo and accuracy
+    score_max_combo = getattr(score, "max_combo", None)
     
-    # SS PP
-    performance_ss = rosu.Performance(lazer=lazer)
-    performance_ss.set_accuracy(100.0)
-    performance_ss.set_misses(0)
-    performance_ss.set_mods(mods_string)
-    pp_ss = float(performance_ss.calculate(beatmap).pp)
+    # Calculate actual PP
+    actual_pp = _calculate_actual_pp(
+        beatmap, mods_string, lazer, n300, n100, n50, misses,
+        actual_slider_end_hits, actual_small_tick_hits, score_max_combo, score.accuracy
+    )
+    
+    # Calculate SS PP
+    pp_ss = _calculate_ss_pp(beatmap, mods_string, lazer)
     
     # Return
     return ScoreMetrics(
