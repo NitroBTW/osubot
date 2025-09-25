@@ -6,6 +6,7 @@ import datetime as dt
 import logging
 import os
 import asyncio
+import uuid
 
 from utils.config import DB_PATH
 from typing import Optional
@@ -32,6 +33,15 @@ async def init_db() -> None:
                 osu_username TEXT NOT NULL,
                 linked_at TEXT NOT NULL,
                 preferred_mode TEXT
+            )
+            """
+        )
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS oauth_states (
+                state TEXT PRIMARY KEY,
+                discord_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL
             )
             """
         )
@@ -122,3 +132,69 @@ async def get_link(discord_id: int):
             # Create and return a tuple with the found data
             osu_user_id, osu_username, preferred_mode = int(row[0]), str(row[1]), str(row[2])
             return osu_user_id, osu_username, preferred_mode
+
+
+async def create_oauth_state(discord_id: int) -> str:
+    """
+    Creates a new OAuth state for the given Discord ID and stores it in the database.
+    
+    Args:
+        discord_id (int): The Discord ID to associate with the state.
+    
+    Returns:
+        str: The generated OAuth state string.
+    """
+    state = str(uuid.uuid4())
+    created_at = dt.datetime.utcnow().isoformat()
+    
+    # Connect to the database
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO oauth_states (state, discord_id, created_at)
+            VALUES (?, ?, ?)
+            """,
+            (state, discord_id, created_at)
+        )
+        await db.commit()
+    
+    logger.info(f"Created OAuth state '{state}' for Discord ID {discord_id}.")
+    return state
+
+
+async def pop_oauth_state(state: str) -> Optional[int]:
+    """
+    Pops the OAuth state by retrieving the associated Discord ID and deleting the state from the database.
+    
+    Args:
+        state (str): The OAuth state string to pop.
+    
+    Returns:
+        Optional[int]: The associated Discord ID if the state exists, else None.
+    """
+    # Connect to the database
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Fetch the discord_id
+        async with db.execute(
+            """
+            SELECT discord_id FROM oauth_states WHERE state = ?
+            """,
+            (state,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row is None:
+                return None
+            
+            discord_id = int(row[0])
+            
+            # Delete the state to prevent reuse
+            await db.execute(
+                """
+                DELETE FROM oauth_states WHERE state = ?
+                """,
+                (state,)
+            )
+            await db.commit()
+        
+        logger.info(f"Popped OAuth state '{state}' for Discord ID {discord_id}.")
+        return discord_id

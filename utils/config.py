@@ -18,3 +18,7 @@ OSU_CLIENT_ID: str = os.getenv("OSU_CLIENT_ID", "")
 OSU_CLIENT_SECRET: str = os.getenv("OSU_CLIENT_SECRET", "")
 
 # Oauth configuration
+OSU_REDIRECT_URI: str = os.getenv("OSU_REDIRECT_URI", "")
+OAUTH_HOST: str = os.getenv("OAUTH_HOST", "127.0.0.1")
+OAUTH_PORT: int = os.getenv("OAUTH_PORT", "8080")
+HTTP_TIMEOUT_SECONDS: int = os.getenv("HTTP_TIMEOUT_SECONDS", "300")

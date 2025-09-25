@@ -11,10 +11,8 @@ from discord.ext import commands
 from utils.config import DISCORD_BOT_TOKEN
 from utils.database import init_db
 from utils.osu_api import OsuClient
-# For later implementation
-# from oauth_server import OAuthServer
+from oauth_server import OAuthServer
 
-logging.basicConfig(level=logging.Info)
 logger = logging.getLogger(__name__)
 
 class DiscordBot(commands.Bot):
@@ -31,9 +29,11 @@ class DiscordBot(commands.Bot):
         intents.message_content = True
         super().__init__(
             intents=intents,
+            command_prefix="-",
             help_command=None
         )
         self.osu_client: OsuClient | None = None
+        self.oauth: OAuthServer | None = None
         self._cogs_loaded = False
     
     async def setup_hook(self):
@@ -43,7 +43,10 @@ class DiscordBot(commands.Bot):
         logger.info("Bot setup_hook starting")
         await init_db()
         self.osu_client = OsuClient()
-        
+        self.oauth = OAuthServer(self)
+        await self.oauth.start()
+
+
         cogs: List[str] = [
             # List of cogs
         ]
