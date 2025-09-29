@@ -2,6 +2,8 @@
 Helper functions for use/continuity throughout osu!bot
 """
 import logging
+import discord
+from ossapi import User
 from typing import Any
 from pathlib import Path
 
@@ -69,3 +71,22 @@ def delete_beatmap(beatmap_id: int) -> bool:
     except OSError as e:
         logger.error(f"Failed to delete beatmap {beatmap_id} from cache: {e}")
         return False
+    
+def profile_card(user_data: User) -> discord.Embed:
+    """
+    Returns a discord Embed with a profile card for the user
+
+    Args:
+        user_data (User): Ossapi user data object
+
+    Returns:
+        str: Embed with profile card
+    """
+    return discord.Embed(
+        title=f"{user_data.username}: {user_data.statistics.pp}pp (#{user_data.statistics.global_rank} : #{user_data.statistics.country_rank})",
+        description=user_data.username,
+        color=user_data.profile_color or discord.Color.random(),
+        timestamp=datetime.datetime.utcnow(),
+        url=f"https://osu.ppy.sh/users/{user_data.id}",
+        image=user_data.avatar_url
+    )

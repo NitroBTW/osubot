@@ -5,6 +5,7 @@ Routes:
   - GET /osu/callback  -> OAuth redirect handler
 """
 import asyncio
+import discord
 import urllib.parse
 from typing import Optional
 
@@ -20,6 +21,7 @@ from utils.config import (
     HTTP_TIMEOUT_SECONDS,
 )
 from utils.database import create_oauth_state, pop_oauth_state, set_link
+import os
 
 import logging
 
@@ -76,6 +78,8 @@ class OAuthServer:
         """
         state = await create_oauth_state(discord_id)
         logger.info(f"Generated OAuth authorization URL for Discord ID {discord_id}")
+        logger.info(f"Using OSU_CLIENT_ID: '{OSU_CLIENT_ID}'")
+        logger.info(f"Using OSU_REDIRECT_URI: '{OSU_REDIRECT_URI}'")
         q = {
             "client_id": str(OSU_CLIENT_ID),
             "redirect_uri": OSU_REDIRECT_URI,
@@ -83,7 +87,9 @@ class OAuthServer:
             "scope": "public",
             "state": state,
         }
-        return "https://osu.ppy.sh/oauth/authorize?" + urllib.parse.urlencode(q)
+        auth_url = "https://osu.ppy.sh/oauth/authorize?" + urllib.parse.urlencode(q)
+        logger.info(f"Full auth URL: {auth_url}")
+        return auth_url
 
     async def handle_callback(self, request: web.Request) -> web.Response:
         """
@@ -148,27 +154,38 @@ class OAuthServer:
         await set_link(discord_id, osu_id, osu_name)
         logger.info(f"Linked Discord ID {discord_id} to osu! user '{osu_name}' (ID {osu_id})")
 
-        # Try DM the user (non-fatal if it fails)
+        # Fetch user for name and DM (non-fatal)
+        user = None
+        discord_username = "Unknown"
         try:
-            user = self.bot.get_user(discord_id) or await self.bot.fetch_user(
-                discord_id
-            )
+            user = self.bot.get_user(discord_id) or await self.bot.fetch_user(discord_id)
             if user:
-                await user.send(
-                    f"✅ Linked your Discord to osu! account '{osu_name}' "
-                    f"(id {osu_id})."
+                discord_username = user.name
+                embed = discord.Embed(
+                    title="Account Linked Successfully!",
+                    description=f"Your Discord account is now linked to osu! account **{osu_name}** .",
+                    color=discord.Color.green(),
                 )
+                await user.send(embed=embed)
         except Exception as e:
-            logger.warning(f"Failed to send DM to Discord ID {discord_id}: {e}")
+            logger.warning(f"Failed to fetch/send DM to Discord ID {discord_id}: {e}")
 
-        html = """
+        # Serve the success page
+        try:
+            with open(os.path.join(os.path.dirname(__file__), 'index.html'), 'r', encoding='utf-8') as f:
+                html_template = f.read()
+            html = html_template.format(discord_username=discord_username, osu_username=osu_name)
+        except Exception as e:
+            logger.error(f"Failed to load index.html: {e}")
+            html = """
             <!doctype html>
             <html>
             <head><meta charset="utf-8"><title>osu! link</title></head>
             <body style="font-family: system-ui, sans-serif;">
-                <h2>✅ Linked successfully</h2>
+                <h2>Linked successfully</h2>
                 <p>You can close this tab and return to Discord.</p>
             </body>
             </html>
             """
+
         return web.Response(text=html, content_type="text/html")

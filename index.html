@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>osu! Account Linked</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&display=swap');
+
+      body {{
+        font-family: 'Fredoka', cursive;
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        color: #e2e8f0;
+      }}
+      .card {{
+        max-width: 640px;
+        padding: 2rem;
+        background: #111827;
+        border: 2px solid rgba(237, 137, 255, 0.3);
+        border-radius: 8px;
+        text-align: center;
+      }}
+      a.button {{
+        display: inline-block;
+        margin-top: 1rem;
+        padding: 0.75rem 1.25rem;
+        background: linear-gradient(45deg, #ed89ff, #ff89d4);
+        color: #0b1020;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 600;
+        transform: scale(1);
+        transition: all 0.3s ease;
+      }}
+      a.button:hover {{
+        box-shadow: 0 0 20px rgba(237, 137, 255, 0.3);
+        transform: scale(1.05);
+        transition: all 0.3s ease;
+      }}
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>osu! account linked</h1>
+      <p>
+        We have successfully linked your discord account ({discord_username}) to the following osu profile: {osu_username}
+      </p>
+      <p>
+        You may close this tab and go back to discord
+      </p>
+    </div>
+  </body>
+</html>

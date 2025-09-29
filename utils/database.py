@@ -133,6 +133,32 @@ async def get_link(discord_id: int):
             osu_user_id, osu_username, preferred_mode = int(row[0]), str(row[1]), str(row[2])
             return osu_user_id, osu_username, preferred_mode
 
+async def delete_link(discord_id: int) -> bool:
+    """
+    Deletes the osu! link for the given Discord ID.
+
+    Args:
+        discord_id (int): The Discord ID of the user to unlink.
+
+    Returns:
+        bool: True if a link was deleted, False if no link existed.
+    """
+    # Connect to the database
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Delete the link and get rowcount
+        cur = await db.execute(
+            """
+            DELETE FROM user_links WHERE discord_id = ?
+            """,
+            (discord_id,)
+        )
+        await db.commit()
+        deleted = cur.rowcount > 0
+        if deleted:
+            logger.info(f"Deleted osu! link for Discord ID {discord_id}.")
+        else:
+            logger.info(f"No osu! link found for Discord ID {discord_id}.")
+        return deleted
 
 async def create_oauth_state(discord_id: int) -> str:
     """
