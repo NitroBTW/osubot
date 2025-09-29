@@ -14,6 +14,7 @@ from utils.osu_api import OsuClient
 from oauth_server import OAuthServer
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 class DiscordBot(commands.Bot):
     """
@@ -48,7 +49,7 @@ class DiscordBot(commands.Bot):
 
 
         cogs: List[str] = [
-            # List of cogs
+            "cogs.link",
         ]
 
         for c in cogs:
@@ -63,7 +64,24 @@ class DiscordBot(commands.Bot):
         Called on bot login
         """
         logger.info(f"Bot logged in as {self.user} (ID: {self.user.id})")
-        await self.tree.sync()
+        
+        # Sync commands globally (for DMs and all guilds)
+        try:
+            synced = await self.tree.sync()
+            logger.info(f"Synced {len(synced)} global commands: {[cmd.name for cmd in synced]}")
+        except Exception as e:
+            logger.error(f"Global command sync failed: {e}")
+        
+        # Also sync to specific guild for instant testing
+        guild_id = 1407837272165978253
+        try:
+            guild = discord.Object(id=guild_id)
+            guild_synced = await self.tree.sync(guild=guild)
+            logger.info(f"Synced {len(guild_synced)} commands to guild {guild_id}: {[cmd.name for cmd in guild_synced]}")
+        except discord.HTTPException as e:
+            logger.error(f"Guild command sync failed (HTTP {e.status}): {e.text}")
+        except Exception as e:
+            logger.error(f"Guild command sync failed: {e}")
     
     async def close(self) -> None:
         """
